@@ -1,21 +1,178 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import Sidebar from './components/Sidebar';
-import StatCard from './components/StatCard';
-import { Project, Expense, RiskMetrics, InventoryItem, LaborRecord } from './types';
 import { 
   TrendingUp, Activity, AlertCircle, Plus, Briefcase, 
   Zap, Route, FileText, BrainCircuit, HardHat, 
-  Download, DollarSign, Percent, CheckCircle2,
-  Trash2, Leaf, Gauge, Calendar, Calculator, Package,
-  MapPin, Clock, BarChart3, Layers, Users, Timer
+  Download, Leaf, Package, Users, Timer, Trash2, 
+  LayoutDashboard, ClipboardList, Warehouse, HardHat as HelmetIcon, BarChart3
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, AreaChart, Area, ComposedChart, Line
 } from 'recharts';
-import { getAiCostInsights } from './services/geminiService';
 
+// --- 1. TİP TANIMLAMALARI (TYPES) ---
+interface Project {
+  id: string;
+  name: string;
+  type: 'GES' | 'YOL';
+  location: string;
+  status: 'ACTIVE' | 'COMPLETED' | 'PLANNED';
+  totalBudget: number;
+  capacity: number;
+  startDate: string;
+  targetEndDate: string;
+  percentComplete: number;
+  targetCO2Saved?: number;
+}
+
+interface Expense {
+  id: string;
+  projectId: string;
+  amount: number;
+  quantity: number;
+  unit: string;
+  category: string;
+  description: string;
+  date: string;
+  type: 'MATERIAL' | 'LABOR' | 'MACHINE' | 'FUEL' | 'OTHER';
+}
+
+interface InventoryItem {
+  id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  minStock: number;
+  lastUpdated: string;
+}
+
+interface LaborRecord {
+  id: string;
+  projectId: string;
+  workerName: string;
+  role: string;
+  hours: number;
+  overtime: number;
+  date: string;
+  dailyRate: number;
+}
+
+interface RiskMetrics {
+  actualCost: number;
+  burnRate: number;
+  remainingDays: number;
+  estimatedAtCompletion: number;
+  budgetDeviation: number;
+  cpi: number;
+  carbonSaved: number;
+}
+
+// --- 2. SAHTE AI SERVİSİ (MOCK SERVICE) ---
+// Gerçek API anahtarı olmadan çalışması için simülasyon
+const getAiCostInsights = async (project: Project, expenses: Expense[]) => {
+  return new Promise<string>((resolve) => {
+    setTimeout(() => {
+      resolve(`
+**${project.name} - AI Stratejik Analiz Raporu**
+
+1. **Bütçe Durumu:** Proje şu anki harcama hızıyla (Burn Rate) devam ederse, tahmini bütçe aşımı %12 civarında olacaktır. Özellikle ${project.type === 'GES' ? 'panel montaj' : 'hafriyat'} kalemlerinde maliyet artışı gözlemleniyor.
+
+2. **Verimlilik Analizi (CPI):** Maliyet Performans Endeksi (CPI) 0.92 seviyesinde. Yani harcanan her 100 TL karşılığında 92 TL'lik iş üretiliyor. 
+
+3. **Öneri:** ${project.type === 'GES' ? 'Panel tedarikçisi ile lojistik maliyetleri için sabit fiyat anlaşması yapılmalı.' : 'İş makinelerinin rölanti süreleri çok yüksek, vardiya planlaması gözden geçirilmeli.'}
+
+4. **ESG Etkisi:** Proje tamamlandığında yıllık ${project.capacity * 450} Ton CO2 tasarrufu sağlayacak. Bu, yeşil tahvil finansmanı için uygun bir skordur.
+      `);
+    }, 2000); // 2 saniye bekleme efekti
+  });
+};
+
+// --- 3. BİLEŞENLER (COMPONENTS) ---
+
+// Sidebar Bileşeni
+const Sidebar = ({ activeTab, setActiveTab }: { activeTab: string, setActiveTab: (t: string) => void }) => {
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+    { id: 'projects', label: 'Projeler', icon: <Briefcase size={20} /> },
+    { id: 'expenses', label: 'Yeşil Defter', icon: <ClipboardList size={20} /> },
+    { id: 'inventory', label: 'Stok & Depo', icon: <Warehouse size={20} /> },
+    { id: 'labor', label: 'Puantaj', icon: <HelmetIcon size={20} /> },
+    { id: 'reports', label: 'AI Raporlama', icon: <BrainCircuit size={20} /> },
+  ];
+
+  return (
+    <div className="fixed left-0 top-0 h-full w-64 bg-slate-900 text-white p-6 shadow-2xl z-50">
+      <div className="flex items-center gap-3 mb-10 px-2">
+        <div className="bg-indigo-600 p-2 rounded-lg">
+          <Activity size={24} className="text-white" />
+        </div>
+        <div>
+          <h1 className="font-black text-xl tracking-tighter">MegaCost</h1>
+          <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Construction AI</p>
+        </div>
+      </div>
+      
+      <nav className="space-y-2">
+        {menuItems.map(item => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-sm ${
+              activeTab === item.id 
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' 
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="absolute bottom-8 left-6 right-6">
+        <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span className="text-xs font-bold text-slate-300">Sistem Online</span>
+          </div>
+          <p className="text-[10px] text-slate-500">v2.4.0 Enterprise</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// StatCard Bileşeni
+const StatCard = ({ title, value, icon, color, trend, isPositive }: any) => {
+  const colors: any = {
+    blue: "bg-blue-50 text-blue-600",
+    amber: "bg-amber-50 text-amber-600",
+    red: "bg-red-50 text-red-600",
+    green: "bg-green-50 text-green-600",
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+      <div className="flex justify-between items-start mb-4">
+        <div className={`p-3 rounded-2xl ${colors[color] || colors.blue}`}>
+          {icon}
+        </div>
+        {trend && (
+          <span className={`text-xs font-bold px-2 py-1 rounded-full ${isPositive ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+            {trend}
+          </span>
+        )}
+      </div>
+      <div>
+        <h4 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">{title}</h4>
+        <p className="text-2xl font-black text-slate-900 tracking-tight">{value}</p>
+      </div>
+    </div>
+  );
+};
+
+// --- 4. ANA UYGULAMA (APP) ---
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [projects, setProjects] = useState<Project[]>([]);
@@ -25,7 +182,7 @@ const App: React.FC = () => {
   const [loadingAi, setLoadingAi] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
 
-  // Form States - Expenses
+  // Form States
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [formData, setFormData] = useState({
     amount: '',
@@ -37,7 +194,6 @@ const App: React.FC = () => {
     date: new Date().toISOString().split('T')[0]
   });
 
-  // Form States - Projects
   const [projectFormData, setProjectFormData] = useState({
     name: '',
     type: 'GES' as any,
@@ -49,7 +205,6 @@ const App: React.FC = () => {
     percentComplete: '0'
   });
 
-  // Form States - Inventory
   const [inventoryFormData, setInventoryFormData] = useState({
     name: '',
     category: '',
@@ -58,7 +213,6 @@ const App: React.FC = () => {
     minStock: ''
   });
 
-  // Form States - Labor
   const [laborFormData, setLaborFormData] = useState({
     workerName: '',
     role: 'Usta',
@@ -80,6 +234,7 @@ const App: React.FC = () => {
     if (savedInventory) setInventory(JSON.parse(savedInventory));
     if (savedLabor) setLaborRecords(JSON.parse(savedLabor));
 
+    // Demo Data Başlangıçta Yoksa Ekle
     if (!savedProjects) {
       const initProjects: Project[] = [
         { 
@@ -97,15 +252,6 @@ const App: React.FC = () => {
       ];
       setProjects(initProjects);
       localStorage.setItem('megacontrol_projects', JSON.stringify(initProjects));
-    }
-
-    if (!savedInventory) {
-      const initInventory: InventoryItem[] = [
-        { id: 'i1', name: 'Güneş Paneli - 550W', category: 'Panel', quantity: 1200, unit: 'Adet', minStock: 200, lastUpdated: new Date().toISOString() },
-        { id: 'i2', name: 'Bitümlü Asfalt', category: 'Yol Malzemesi', quantity: 450, unit: 'Ton', minStock: 50, lastUpdated: new Date().toISOString() }
-      ];
-      setInventory(initInventory);
-      localStorage.setItem('megacontrol_inventory', JSON.stringify(initInventory));
     }
   }, []);
 
@@ -254,6 +400,7 @@ const App: React.FC = () => {
     setLoadingAi(false);
   };
 
+  // --- RENDER ---
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900 font-sans">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -539,7 +686,7 @@ const App: React.FC = () => {
         {activeTab === 'expenses' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in slide-in-from-right-4">
             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-              <h3 className="text-xl font-black mb-8 flex items-center gap-3"><Calculator className="text-indigo-600" /> Metraj Cetveli Girişi</h3>
+              <h3 className="text-xl font-black mb-8 flex items-center gap-3"><ClipboardList className="text-indigo-600" /> Metraj Cetveli Girişi</h3>
               <form onSubmit={handleAddExpense} className="space-y-6">
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Proje</label>
