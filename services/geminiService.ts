@@ -2,56 +2,57 @@
 import { GoogleGenAI } from "@google/genai";
 import { Project, Expense } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export async function getAiCostInsights(project: Project, expenses: Expense[]) {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
   const actualCost = expenses.reduce((sum, e) => sum + e.amount, 0);
   const earnedValue = project.totalBudget * (project.percentComplete / 100);
   const cpi = actualCost > 0 ? earnedValue / actualCost : 1;
-  const eac = cpi > 0 ? project.totalBudget / cpi : project.totalBudget;
-  const variance = project.totalBudget - eac;
+  
+  // Risk Calculations
+  const start = new Date(project.startDate).getTime();
+  const end = new Date(project.targetEndDate).getTime();
+  const now = new Date().getTime();
+  const daysPassed = Math.max(1, (now - start) / (1000 * 60 * 60 * 24));
+  const remainingDays = Math.max(0, (end - now) / (1000 * 60 * 60 * 24));
+  const burnRate = actualCost / daysPassed;
+  const eac = actualCost + (burnRate * remainingDays);
+  const budgetDeviation = project.totalBudget - eac;
 
-  const dataSummary = `
-    PROJE KARNESİ:
-    Adı: ${project.name}
-    Tip: ${project.type}
-    Tamamlanma Oranı: %${project.percentComplete}
-    Bütçe: ${project.totalBudget} TL
-    Fiili Harcama (AC): ${actualCost} TL
-    Kazanılmış Değer (EV): ${earnedValue} TL
-    Performans Endeksi (CPI): ${cpi.toFixed(2)}
-    Tahmini Final Maliyeti (EAC): ${eac.toFixed(0)} TL
-    Varyans: ${variance.toFixed(0)} TL
-    Kategori Detayları: ${JSON.stringify(
-      expenses.reduce((acc: any, e) => {
-        acc[e.category] = (acc[e.category] || 0) + e.amount;
-        return acc;
-      }, {})
-    )}
+  const dataContext = `
+    DURUM RAPORU - ${project.name}
+    PROJE TİPİ: ${project.type}
+    BÜTÇE: ${project.totalBudget.toLocaleString('tr-TR')} TL
+    HARCANAN (AC): ${actualCost.toLocaleString('tr-TR')} TL
+    GÜNLÜK HARCAMA HIZI (BURN RATE): ${burnRate.toLocaleString('tr-TR')} TL
+    KALAN SÜRE: ${Math.round(remainingDays)} Gün
+    TAHMİNİ BİTİŞ MALİYETİ (EAC): ${eac.toLocaleString('tr-TR')} TL
+    BÜTÇE SAPMA ÖNGÖRÜSÜ: ${budgetDeviation.toLocaleString('tr-TR')} TL
+    CPI (PERFORMANS): ${cpi.toFixed(2)}
+    TAMAMLANMA: %${project.percentComplete}
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Bu verileri analiz et: ${dataSummary}`,
+      contents: `Proje verilerini teknik bir maliyet kontrol şefi gözüyle analiz et: ${dataContext}`,
       config: {
-        systemInstruction: `Sen 'MegaCost' uygulamasının baş maliyet kontrol (Cost Control) analistisin. 
-        Kullanıcıya inşaat projesinin (GES veya Yol) finansal sağlığı hakkında profesyonel, 
-        stratejik ve aksiyon odaklı bir rapor sun. 
+        systemInstruction: `Sen 'MegaControl AI' sisteminin baş finansal denetçisisin. 
+        Müşteriye Earned Value Management (EVM) prensiplerine uygun, üst düzey bir risk analiz raporu sun.
         
-        Raporun şunları içermeli:
-        1. Mevcut CPI değerine göre bütçe risk analizi.
-        2. Kategori bazlı (Malzeme, İşçilik vb.) anormal sapmaların tespiti.
-        3. Projenin EAC (Tahmini Bitiş Maliyeti) bütçeyi aşıyorsa alınması gereken somut tasarruf tedbirleri.
-        4. Gelecek dönem nakit akışı için stratejik tavsiye.
+        RAPOR FORMATIN ŞU ŞEKİLDE OLMALI:
+        1. **Finansal Sağlık Skoru:** Mevcut Burn Rate ve CPI değerlerine göre projenin bütçe içinde kalma olasılığını değerlendir.
+        2. **Kritik Risk Tespiti:** Eğer EAC bütçeyi aşıyorsa, projenin hangi aşamasında (Malzeme, İşçilik vb.) maliyet kontrolden çıkmış olabilir?
+        3. **ESG ve Karbon Stratejisi:** Projenin yeşil enerji/ESG hedeflerine katkısını vurgula (Özellikle GES projelerinde).
+        4. **Stratejik Aksiyon Planı:** Kalan sürede bütçeyi optimize etmek için 3 adet 'Senior' seviye tavsiye ver (Örn: Lojistik optimizasyonu, Fiyat farkı yönetimi, Taşeron revizyonu).
         
-        Dili profesyonel, güven verici ama risk durumunda uyarıcı olsun. Türkçe yanıt ver. Markdown kullanma, düz metin veya liste yapısı kullan.`
+        Dilin: Çok profesyonel, veri odaklı, otoriter ve çözümleyici olmalı. Türkçe yanıt ver. Markdown kullanma.`
       }
     });
 
     return response.text;
   } catch (error) {
-    console.error("AI Insight Error:", error);
-    return "Maliyet analizi sırasında bir hata oluştu. Verileri kontrol edip tekrar deneyin.";
+    console.error("MegaControl AI Error:", error);
+    return "Analiz motoru şu an meşgul. Lütfen manuel veriler üzerinden risk değerlendirmesi yapınız.";
   }
 }
